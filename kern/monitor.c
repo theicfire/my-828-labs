@@ -69,6 +69,14 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
       cprintf(" %08x", *(ebp + i)); // moving up the stack (higher numbers)
     }
     cprintf("\n");
+
+    // Line number and function names and such
+    // debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
+    struct Eipdebuginfo info;
+    debuginfo_eip(*(ebp + 1), &info);
+    cprintf("\t%s:%d: %.*s+%d\n", info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, info.eip_fn_addr);
+
+
     ebp = (int*)*ebp;
   }
 	return 0;
