@@ -153,8 +153,9 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.
 	// Your code goes here:
 
-  pages = boot_alloc(npages * sizeof(PageInfo));
-  memset(pages, 0, npages * sizeof(PageInfo));
+	// I think this might end up being exactly PTSIZE in length..
+	  pages = (struct PageInfo*) boot_alloc(npages * sizeof(struct PageInfo));
+	  memset(pages, 0, npages * sizeof(struct PageInfo));
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -179,7 +180,17 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-  // What's an image?
+  	// What's an image?
+  	// I think that's just a section of disk
+  	/*
+  	pages is the start of the pageinfo linked list
+  	I think UPAGES and pages point to the same thing
+	so they are physical addresses	
+	how are UPAGES and pages different? I thought they point to the same thing?
+  	*/
+  	// PADDR(pages) = PADDR(pages) | PTE_U | PTE_P;
+  	// pages = pages | PTE_W | PTE_P;
+
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -192,6 +203,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
+	// kern_pgdir[PDX(KSTACKTOP-PTSIZE)] = PADDR(IAMNOTSURE) | PTE_U | PTE_P;
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -201,6 +213,10 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
+	/*
+	hmm, so what's a mapping
+	*/
+	// mother fucker
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -260,10 +276,17 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
+	physaddr_t start_kernel_free = (physaddr_t) PADDR(boot_alloc(0));
 	for (i = 0; i < npages; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
+		physaddr_t page_loc = page2pa(pages + i);
+		if (i != 0 && (page_loc < IOPHYSMEM || page_loc >= EXTPHYSMEM) && page_loc >= start_kernel_free) {
+			page_loc->pp_ref = 0;
+			page_loc->pp_link = page_free_list;
+			page_free_list = &pages[i];
+		} else (page_loc > start_kernel_free) {
+			page_lock->pp_ref = 1;
+			// do we care about pp_link?
+		}
 	}
 }
 
@@ -279,8 +302,16 @@ page_init(void)
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
-	// Fill this function in
-	return 0;
+	if (page_free_list == NULL) {
+		return NULL;
+	}
+	PageInfo *page = page_free_list;
+	char* phy = page2kva(page);
+	if (alloc_flags & ALLOC_ZERO) {
+		memset(phy, '\0', PGSIZE);
+	}
+	page_free_list = page->pp_link;
+	return phy;
 }
 
 //
@@ -290,7 +321,9 @@ page_alloc(int alloc_flags)
 void
 page_free(struct PageInfo *pp)
 {
-	// Fill this function in
+	pp->pp_ref = 0;
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
