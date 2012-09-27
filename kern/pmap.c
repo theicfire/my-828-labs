@@ -109,6 +109,7 @@ boot_alloc(uint32_t n)
   char* ret = nextfree;
   nextfree += ROUNDUP(n, PGSIZE);
   return ret;
+
 }
 
 // Set up a two-level page table:
@@ -275,19 +276,21 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
-	size_t i;
-	physaddr_t start_kernel_free = (physaddr_t) PADDR(boot_alloc(0));
-	for (i = 0; i < npages; i++) {
-		physaddr_t page_loc = page2pa(pages + i);
-		if (i != 0 && (page_loc < IOPHYSMEM || page_loc >= EXTPHYSMEM) && page_loc >= start_kernel_free) {
-			page_loc->pp_ref = 0;
-			page_loc->pp_link = page_free_list;
-			page_free_list = &pages[i];
-		} else (page_loc > start_kernel_free) {
-			page_lock->pp_ref = 1;
-			// do we care about pp_link?
-		}
-	}
+  size_t i;
+  physaddr_t start_kernel_free = (physaddr_t) PADDR(boot_alloc(0));
+  for (i = 0; i < npages; i++) {
+    physaddr_t page_loc = page2pa(pages + i);
+    /*if (i != 0 && (page_loc < IOPHYSMEM || page_loc >= EXTPHYSMEM) && page_loc >= start_kernel_free) {*/
+    if (i != 0 && (page_loc < IOPHYSMEM || page_loc >= EXTPHYSMEM) &&
+        (page_loc < EXTPHYSMEM || page_loc >= start_kernel_free)) {
+      pages[i].pp_ref = 0;
+      pages[i].pp_link = page_free_list;
+      page_free_list = &pages[i];
+    } else {
+      pages[i].pp_ref = 1;
+      // do we care about pp_link?
+    }
+  }
 }
 
 //
@@ -305,13 +308,14 @@ page_alloc(int alloc_flags)
 	if (page_free_list == NULL) {
 		return NULL;
 	}
-	PageInfo *page = page_free_list;
+	struct PageInfo *page = page_free_list;
 	char* phy = page2kva(page);
 	if (alloc_flags & ALLOC_ZERO) {
 		memset(phy, '\0', PGSIZE);
 	}
 	page_free_list = page->pp_link;
-	return phy;
+  page->pp_link = NULL;
+	return page;
 }
 
 //
@@ -536,6 +540,7 @@ check_page_free_list(bool only_low_memory)
 static void
 check_page_alloc(void)
 {
+  cprintf("start check\n");
 	struct PageInfo *pp, *pp0, *pp1, *pp2;
 	int nfree;
 	struct PageInfo *fl;
