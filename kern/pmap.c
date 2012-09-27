@@ -70,6 +70,7 @@ static void check_page_installed_pgdir(void);
 //
 // If n>0, allocates enough pages of contiguous physical memory to hold 'n'
 // bytes.  Doesn't initialize the memory.  Returns a kernel virtual address.
+// ?? What does returns a virtual address mean?
 //
 // If n==0, returns the address of the next free page without allocating
 // anything.
@@ -98,19 +99,30 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+  if (n + PGSIZE > PGSIZE * npages) {
+    panic("You are trying to allocate too much");
+  }
+  if (n == 0) {
+    return nextfree;
+  }
+  // n > 0 because unsigned
+  char* ret = nextfree;
+  nextfree += ROUNDUP(n, PGSIZE);
+  return ret;
 }
 
 // Set up a two-level page table:
 //    kern_pgdir is its linear (virtual) address of the root
+//    ~~ what does "of the root" mean?
 //
 // This function only sets up the kernel part of the address space
 // (ie. addresses >= UTOP).  The user part of the address space
 // will be setup later.
+// so the kernel has it's own page table? And so does the user?
 //
 // From UTOP to ULIM, the user is allowed to read but not write.
 // Above ULIM the user cannot read or write.
+// ~~ok.. kind of makes sense
 void
 mem_init(void)
 {
@@ -119,9 +131,6 @@ mem_init(void)
 
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
-
-	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -143,6 +152,9 @@ mem_init(void)
 	// each physical page, there is a corresponding struct PageInfo in this
 	// array.  'npages' is the number of physical pages in memory.
 	// Your code goes here:
+
+  pages = boot_alloc(npages * sizeof(PageInfo));
+  memset(pages, 0, npages * sizeof(PageInfo));
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -167,6 +179,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
+  // What's an image?
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
